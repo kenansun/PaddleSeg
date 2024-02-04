@@ -1,0 +1,8 @@
+_base_: '../_base_/munich480.yml'
+
+model:
+  type: UNet
+  num_classes: 18
+  use_deconv: False
+  pretrained: Null
+  in_channels: 13

@@ -13,14 +13,17 @@ from paddleseg.transforms import Compose
 from paddleseg.datasets import Dataset
 
 @manager.DATASETS.add_component
-class RSDATASET(Dataset):
-
+class Rsdataset(Dataset):
+    NUM_CLASSES = 18
+    IGNORE_INDEX = 255
+    IMG_CHANNELS = 13
+    LABEL_FILENAME = "y.tif"
     def __init__(self,
                  mode,
                  dataset_root,
                  num_classes,
                  transforms=None,
-                 img_channels=3,
+                 img_channels=13,
                  train_path=None,
                  val_path=None,
                  test_path=None,
@@ -28,14 +31,14 @@ class RSDATASET(Dataset):
                  ignore_index=255,
                  edge=False):
         self.dataset_root = dataset_root
-        if transforms is not None : self.transforms = Compose(transforms, img_channels=img_channels,to_rgb=False)
         self.file_list = list()
         self.mode = mode.lower()
         self.num_classes = num_classes
         self.img_channels = img_channels
         self.ignore_index = ignore_index
         self.edge = edge
-
+        if transforms is not None : 
+            self.transforms = Compose(transforms, img_channels=img_channels,to_rgb=False)
         if self.mode not in ['train', 'val', 'test']:
             raise ValueError(
                 "mode should be 'train', 'val' or 'test', but got {}.".format(
@@ -49,9 +52,6 @@ class RSDATASET(Dataset):
             raise ValueError(
                 "`num_classes` should be greater than 1, but got {}".format(
                     num_classes))
-        if img_channels not in [1, 3]:
-            raise ValueError("`img_channels` should in [1, 3], but got {}".
-                             format(img_channels))
 
         if self.mode == 'train':
             if train_path is None:
@@ -84,7 +84,7 @@ class RSDATASET(Dataset):
             else:
                 file_path = test_path
         
-        LABEL_FILENAME = "y.tif"
+        self.LABEL_FILENAME = "y.tif"
         stats = dict(
             rejected_nopath=0,
             rejected_length=0,
@@ -96,13 +96,13 @@ class RSDATASET(Dataset):
         with open(os.path.join(file_path), 'r') as f:
             files = [el.replace("\n", "") for el in f.readlines()]
         for d in self.data_dirs:
-            dirs_path = [os.path.join(self.root_dir, d, f) for f in files]
+            dirs_path = [os.path.join(self.dataset_root, d, f) for f in files]
             dirs.extend(dirs_path)
         for path in dirs:
             if not os.path.exists(path):
                 stats["rejected_nopath"] += 1
                 continue
-            if not os.path.exists(os.path.join(path, LABEL_FILENAME)):
+            if not os.path.exists(os.path.join(path, self.LABEL_FILENAME)):
                 stats["rejected_nopath"] += 1
                 continue
             stats["total_samples"] += 1
@@ -115,7 +115,6 @@ class RSDATASET(Dataset):
         if path.endswith(os.sep):
             path = path[:-1]
         label, profile = read(os.path.join(path, self.LABEL_FILENAME))
-        profile["name"] = self.samples[idx]
         dates = get_dates(path)        
         x10 = None
         x20 = None
@@ -131,7 +130,6 @@ class RSDATASET(Dataset):
         x20 = np.array(x20) * 1e-4
         x60 = np.array(x60) * 1e-4
         label = label[0]
-        self.unique_labels = np.unique(np.concatenate([label.flatten(), self.unique_labels]))
         new = np.zeros(label.shape, np.int)
         for cl, i in zip(self.classids, range(len(self.classids))):
             new[label == cl] = i
@@ -151,7 +149,8 @@ class RSDATASET(Dataset):
         x = x.permute(1, 2, 0)
         x = x.float()
         label = label.long()
-        
+        data["img"] = x.numpy()
+        data['label'] = label.numpy()
         data['gt_fields'] = []
         if self.mode == 'val':
             data = self.transforms(data)
@@ -164,7 +163,20 @@ class RSDATASET(Dataset):
 
     def __len__(self):
         return len(self.file_list)    
-    
+    def read_classes(self, csv):
+        with open(csv, 'r') as f:
+            classes = f.readlines()
+
+        ids = list()
+        names = list()
+        for row in classes:
+            row = row.replace("\n", "")
+            if '|' in row:
+                id, cl = row.split('|')
+                ids.append(int(id))
+                names.append(cl)
+
+        return ids, names
 def read(file):
     with rasterio.open(file) as src:
         return src.read(), src.profile

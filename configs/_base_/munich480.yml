@@ -1,0 +1,37 @@
+batch_size: 256  #设定batch_size的值即为迭代一次送入网络的图片数量，一般显卡显存越大，batch_size的值可以越大。如果使用多卡训练，总得batch size等于该batch size乘以卡数。
+iters: 1000    #模型训练迭代的轮数
+
+train_dataset:  #训练数据设置
+  type: Rsdataset #指定加载数据集的类。数据集类的代码在`PaddleSeg/paddleseg/datasets`目录下。
+  dataset_root: /content/munich480 #数据集路径
+  train_path: /content/munich480/tileids/train_fold0.tileids   #数据集中用于训练的标识文件
+  num_classes: 18  #指定类别个数（背景也算为一类）
+  mode: train #表示用于训练
+  img_channels: 13
+  transforms: #模型训练的数据预处理方式。
+    - type: Normalize #对原始图像进行归一化，标注图像保持不变
+val_dataset:  #验证数据设置
+  type: Rsdataset #指定加载数据集的类。数据集类的代码在`PaddleSeg/paddleseg/datasets`目录下。
+  dataset_root: /content/munich480 #数据集路径
+  val_path: /content/munich480/tileids/eval.tileids  #数据集中用于验证的标识文件
+  num_classes: 18  #指定类别个数（背景也算为一类）
+  mode: val #表示用于验证
+  img_channels: 13
+  transforms: #模型验证的数据预处理的方式
+    - type: Normalize #对原始图像进行归一化，标注图像保持不变
+
+optimizer:
+  type: SGD
+  momentum: 0.9
+  weight_decay: 4.0e-5
+
+lr_scheduler:
+  type: PolynomialDecay
+  learning_rate: 0.01
+  end_lr: 0
+  power: 0.9
+
+loss:
+  types:
+    - type: CrossEntropyLoss
+  coef: [1]
